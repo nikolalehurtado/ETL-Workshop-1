@@ -38,12 +38,10 @@ def create_dim_candidate_profile(df: pd.DataFrame) -> pd.DataFrame:
     """
     df = df.copy()
 
-    # Crear rangos de YOE (0-5, 6-10, 11-15, 16-20, 21-25, 26-30)
     bins = [-1, 5, 10, 15, 20, 25, 30]
     labels = ['0-5', '6-10', '11-15', '16-20', '21-25', '26-30']
     df['yoe_range'] = pd.cut(df['YOE'], bins=bins, labels=labels)
 
-    # Combinaciones únicas de Seniority + yoe_range
     unique_profiles = df[['Seniority', 'yoe_range']].drop_duplicates().sort_values(
         ['Seniority', 'yoe_range']
     ).reset_index(drop=True)
@@ -55,28 +53,6 @@ def create_dim_candidate_profile(df: pd.DataFrame) -> pd.DataFrame:
     print(f"DimCandidateProfile creada: {len(dim_profile)} perfiles únicos (seniority + rango YOE).")
     return dim_profile
 
-def create_dim_candidate_profile(df: pd.DataFrame) -> pd.DataFrame:
-    """
-    Crea la dimensión DimCandidateProfile combinando Seniority y rangos de YOE.
-    """
-    df = df.copy()
-
-    # Crear rangos de YOE (0-5, 6-10, 11-15, 16-20, 21-25, 26-30)
-    bins = [-1, 5, 10, 15, 20, 25, 30]
-    labels = ['0-5', '6-10', '11-15', '16-20', '21-25', '26-30']
-    df['yoe_range'] = pd.cut(df['YOE'], bins=bins, labels=labels)
-
-    # Combinaciones únicas de Seniority + yoe_range
-    unique_profiles = df[['Seniority', 'yoe_range']].drop_duplicates().sort_values(
-        ['Seniority', 'yoe_range']
-    ).reset_index(drop=True)
-
-    dim_profile = unique_profiles.rename(columns={'Seniority': 'seniority'})
-    dim_profile['profile_key'] = dim_profile.index + 1
-    dim_profile = dim_profile[['profile_key', 'seniority', 'yoe_range']]
-
-    print(f"DimCandidateProfile creada: {len(dim_profile)} perfiles únicos (seniority + rango YOE).")
-    return dim_profile
 
 def create_dim_country(df: pd.DataFrame) -> pd.DataFrame:
     """
@@ -90,6 +66,7 @@ def create_dim_country(df: pd.DataFrame) -> pd.DataFrame:
 
     print(f"DimCountry creada: {len(dim_country)} países únicos.")
     return dim_country
+
 
 def create_dim_candidate(df: pd.DataFrame) -> pd.DataFrame:
     """
@@ -111,29 +88,62 @@ def create_dim_candidate(df: pd.DataFrame) -> pd.DataFrame:
     return dim_candidate
 
 
+def create_fact_applications(df: pd.DataFrame, dim_date: pd.DataFrame,
+                               dim_technology: pd.DataFrame, dim_profile: pd.DataFrame,
+                               dim_country: pd.DataFrame, dim_candidate: pd.DataFrame) -> pd.DataFrame:
+    """
+    Crea la Tabla de Hechos FactApplications, mapeando cada aplicación
+    a las llaves subrogadas de sus 5 dimensiones correspondientes.
+    """
+    df = df.copy()
 
-if __name__ == "__main__":
-    from extract import extract_data
-    from transform import prepare_data, apply_business_rules
+    bins = [-1, 5, 10, 15, 20, 25, 30]
+    labels = ['0-5', '6-10', '11-15', '16-20', '21-25', '26-30']
+    df['yoe_range'] = pd.cut(df['YOE'], bins=bins, labels=labels)
 
-    df_raw = extract_data('../data/raw/candidates.csv')
-    df_prepared = prepare_data(df_raw)
-    df_transformed = apply_business_rules(df_prepared)
+    fact = df.merge(
+        dim_date[['date_key', 'full_date']],
+        left_on='Application Date', right_on='full_date', how='left'
+    )
 
-    dim_date = create_dim_date(df_transformed)
-    print(dim_date.head())
+    fact = fact.merge(
+        dim_technology[['technology_key', 'technology_name']],
+        left_on='Technology', right_on='technology_name', how='left'
+    )
 
-    dim_technology = create_dim_technology(df_transformed)
-    print(dim_technology.head())
+    fact = fact.merge(
+        dim_profile[['profile_key', 'seniority', 'yoe_range']],
+        left_on=['Seniority', 'yoe_range'], right_on=['seniority', 'yoe_range'], how='left'
+    )
 
-    dim_profile = create_dim_candidate_profile(df_transformed)
-    print(dim_profile.head(10))
+    fact = fact.merge(
+        dim_country[['country_key', 'country_name']],
+        left_on='Country', right_on='country_name', how='left'
+    )
 
-    dim_profile = create_dim_candidate_profile(df_transformed)
-    print(dim_profile.head(10))
+    fact = fact.merge(
+        dim_candidate[['candidate_key', 'email']],
+        left_on='Email', right_on='email', how='left'
+    )
 
-    dim_country = create_dim_country(df_transformed)
-    print(dim_country.head())
+    fact_applications = fact[[
+        'date_key', 'technology_key', 'profile_key', 'country_key', 'candidate_key',
+        'Code Challenge Score', 'Technical Interview Score', 'is_hired'
+    ]].copy()
 
-    dim_candidate = create_dim_candidate(df_transformed)
-    print(dim_candidate.head())
+    fact_applications = fact_applications.rename(columns={
+        'Code Challenge Score': 'code_challenge_score',
+        'Technical Interview Score': 'technical_interview_score'
+    })
+
+    fact_applications['application_count'] = 1
+    fact_applications.insert(0, 'application_key', range(1, len(fact_applications) + 1))
+
+    print(f"FactApplications creada: {len(fact_applications)} aplicaciones.")
+
+    nulls = fact_applications[['date_key', 'technology_key', 'profile_key',
+                                 'country_key', 'candidate_key']].isnull().sum()
+    print("Verificación de referencias inválidas (deben ser todas 0):")
+    print(nulls)
+
+    return fact_applications
