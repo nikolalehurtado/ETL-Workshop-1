@@ -564,3 +564,147 @@ reaplicar mejore las posibilidades de contratación; de hecho, sugiere
 ligeramente lo contrario. Es importante notar que la muestra de reaplicantes
 es pequeña (165 candidatos frente a 49,668), por lo que esta diferencia podría
 no ser estadísticamente significativa y debe interpretarse con cautela.
+
+
+## Visualización BI (Task 7)
+ 
+Se conectó Power BI Desktop directamente a la base de datos `recruitment_dw` en
+MySQL (usando el conector nativo de MySQL para Power BI, con MySQL Connector/NET
+instalado como componente adicional), sin pasar por el CSV original. Algunas
+visualizaciones usan las tablas del modelo directamente; otras usan instrucciones
+SQL personalizadas (equivalentes a las de `sql/analytical_queries.sql`) para traer
+los datos ya agregados desde MySQL.
+ 
+### Elementos generales del dashboard
+ 
+- **Título del reporte:** "Dashboard de Reclutamiento — Workshop 1 ETL"
+- **3 tarjetas KPI** en la parte superior:
+  - Total de Aplicaciones: 50,000
+  - Total Contratados: 6,698
+  - Tasa de Contratación General: 13.40%
+- **Segmentador (slicer) interactivo por año**, que permite filtrar dinámicamente
+  las 5 visualizaciones y las 3 tarjetas KPI al seleccionar un año específico.
+Se construyeron 5 visualizaciones, cubriendo los 5 requisitos de negocio, más
+una visualización complementaria:
+ 
+### R1 - Tendencia de Contratación por Año
+**Tipo:** Gráfico de área (temporal)
+**Requisito que soporta:** R1
+**Pregunta de negocio:** ¿Cómo varían las contrataciones a lo largo del tiempo?
+**KPI representado:** Suma de candidatos contratados (is_hired) por año.
+**Interpretación:** Las contrataciones se mantienen estables entre 2018 y 2021
+(~1,400-1,500 anuales), con una caída aparente en 2022 explicada porque el
+dataset solo cubre hasta julio de ese año (datos incompletos, no una tendencia real).
+ 
+### R2 - Contratados por Tecnología
+**Tipo:** Gráfico de barras (comparativo)
+**Requisito que soporta:** R2
+**Pregunta de negocio:** ¿Qué tecnologías generan más candidatos contratados?
+**KPI representado:** Suma de candidatos contratados por tecnología.
+**Interpretación:** Game Development (~519) y DevOps (~495) destacan por volumen
+de contratados, casi el doble que el resto de tecnologías, porque reciben más
+aplicaciones en general. Social Media Community Management y Technical Writing
+muestran los valores más bajos.
+ 
+### R3 - Tasa de Contratación por Seniority y Experiencia
+**Tipo:** Gráfico de dispersión (scatter)
+**Requisito que soporta:** R3
+**Pregunta de negocio:** ¿Existen diferencias en la tasa de contratación según
+el seniority y los años de experiencia?
+**KPI representado:** Tasa de contratación (%) por combinación de seniority y
+rango de YOE, con el tamaño de cada burbuja representando el volumen de
+aplicaciones.
+**Interpretación:** Las burbujas se agrupan todas entre 11% y 16% de tasa de
+contratación, sin un patrón claro asociado al color (seniority) ni a la posición
+en el eje X (rango de experiencia) — confirma visualmente que el resultado de
+contratación no depende fuertemente del perfil declarado del candidato.
+ 
+### R4 - Contratados por País
+**Tipo:** Gráfico de barras (Top 20)
+**Requisito que soporta:** R4
+**Pregunta de negocio:** ¿Qué países generan más candidatos contratados?
+**KPI representado:** Suma de candidatos contratados por país de origen,
+limitado a los 20 países con más contrataciones.
+**Interpretación:** La contratación se distribuye de forma relativamente
+uniforme entre los países del top 20 (34 a 41 contratados cada uno), sin una
+concentración dominante en un solo país.
+ 
+### R5 - Contratados: Reaplicó vs Una Sola Vez
+**Tipo:** Gráfico de dona
+**Requisito que soporta:** R5
+**Pregunta de negocio:** ¿Los candidatos que reaplican tienen distinta tasa de
+contratación que los que aplican una sola vez?
+**KPI representado:** Proporción de candidatos contratados según si reaplicaron
+o no.
+**Interpretación:** El 99.45% de los contratados corresponde a candidatos que
+aplicaron una sola vez, frente a apenas 0.55% de reaplicantes — refleja que la
+reaplicación es un fenómeno raro dentro del total de candidatos (165 de 49,833),
+consistente con el hallazgo de la consulta SQL de R5 en el Task 6.
+ 
+### Visualización Complementaria: Volumen de Aplicaciones por Seniority
+**Tipo:** Gráfico de barras
+**Propósito:** Contexto adicional (no ligado a un requisito específico)
+**KPI representado:** Suma de aplicaciones (application_count) por nivel de seniority.
+**Interpretación:** El volumen de aplicaciones está distribuido de forma muy
+pareja entre los 7 niveles de seniority (todos entre ~7,000 y ~8,000
+aplicaciones), sin sesgo hacia ningún nivel en particular — esto ayuda a
+contextualizar los resultados de R3, confirmando que las diferencias en tasa
+de contratación no se deben a un desbalance en el volumen de candidatos por perfil.
+ 
+
+ ## Validación Final de Requisitos (Task 8)
+ 
+| Requisito | ¿Implementado? | Tablas del DW Usadas | Query / KPI | Hallazgo Principal |
+|---|---|---|---|---|
+| R1 | Sí | FactApplications, DimDate | Consulta SQL R1 (sql/analytical_queries.sql) + gráfico de área en Power BI | La tasa de contratación se mantiene estable entre 11.4% y 16.96% a lo largo de 2018-2022, sin tendencia sostenida de subida o bajada. |
+| R2 | Sí | FactApplications, DimTechnology | Consulta SQL R2 + gráfico de barras en Power BI | Development - CMS Backend tiene la mejor tasa de contratación (15.09%); Game Development y DevOps concentran el mayor volumen de contratados por su alto número de aplicaciones. |
+| R3 | Sí | FactApplications, DimCandidateProfile | Consulta SQL R3 + gráfico de dispersión en Power BI | No existe un patrón claro entre seniority/años de experiencia y la tasa de contratación (rango angosto: 11.32%-15.46%), sugiriendo que el resultado depende más de los puntajes de las pruebas que del perfil declarado. |
+| R4 | Sí | FactApplications, DimCountry | Consulta SQL R4 + gráfico de barras (Top 20) en Power BI | La contratación se distribuye de forma relativamente uniforme entre los países con más aplicaciones, sin concentración dominante en uno solo; Malaysia y Nauru destacan con mejores tasas que el promedio. |
+| R5 | Sí | FactApplications, DimCandidate | Consulta SQL R5 + gráfico de dona en Power BI | Los candidatos que reaplican (165 de 49,833) muestran una tasa de contratación levemente menor (11.14%) que quienes aplican una sola vez (13.41%); no hay evidencia de que reaplicar mejore las posibilidades. |
+ 
+### ¿El Data Warehouse final provee suficiente información para satisfacer los 5 requisitos de negocio?
+ 
+Sí. Cada uno de los 5 requisitos se respondió con al menos una consulta SQL
+ejecutada directamente sobre `recruitment_dw`, y cada resultado fue representado
+en una visualización de Power BI conectada al mismo Data Warehouse. Las 5
+dimensiones y la tabla de hechos, diseñadas en el Task 2, cubrieron el 100% de
+las 50,000 aplicaciones sin referencias inválidas, lo que confirma que el modelo
+dimensional fue suficiente para soportar el análisis completo sin necesidad de
+volver a la fuente cruda (`candidates.csv`) en ningún punto posterior al Task 4.
+ 
+### ¿El modelo dimensional contiene elementos que no están justificados por los requisitos analíticos?
+ 
+No. Cada una de las 5 dimensiones (DimDate, DimTechnology, DimCandidateProfile,
+DimCountry, DimCandidate) fue creada para soportar un requisito específico
+(R1-R5 respectivamente, ver la tabla de "Validación del Modelo" en la sección de
+Modelo Dimensional), y las 4 medidas (code_challenge_score, technical_interview_score,
+is_hired, application_count) tienen un propósito claro: las dos primeras son los
+datos crudos necesarios para calcular la regla de negocio; is_hired y
+application_count son las medidas aditivas que permiten calcular totales y tasas
+en cualquier agrupación. No se incluyó ninguna dimensión o atributo "porque existía
+en el CSV" sin un uso analítico definido (por ejemplo, First Name y Last Name se
+guardaron únicamente como atributos descriptivos de DimCandidate, no como
+dimensiones propias).
+ 
+### ¿Qué decisiones de negocio pueden soportarse ahora con el sistema analítico implementado?
+ 
+- **Priorización geográfica de reclutamiento (R4):** enfocar campañas en países
+  con mejor tasa de contratación (ej. Malaysia, Nauru) en vez de solo los de
+  mayor volumen de aplicaciones (ej. Malawi, que combina alto volumen con baja tasa).
+- **Optimización del proceso de evaluación por tecnología (R2):** revisar por qué
+  tecnologías como Social Media Community Management o Technical Writing tienen
+  tasas de contratación más bajas, y replicar las prácticas de tecnologías con
+  mejor desempeño como Development - CMS Backend.
+- **Política de reaplicación (R5):** con base en los datos actuales, no se
+  recomienda invertir en campañas activas para animar a candidatos rechazados a
+  reaplicar, ya que no se observa una mejora en sus posibilidades de contratación
+  (aunque la muestra es pequeña y debe monitorearse a futuro).
+- **Planeación de capacidad de reclutamiento en el tiempo (R1):** dado que la
+  tasa de contratación es estable a lo largo del año, el equipo de reclutamiento
+  puede planificar recursos de forma consistente, sin necesidad de reforzar el
+  proceso en periodos específicos.
+- **Revisión de criterios de evaluación por perfil (R3):** dado que el seniority
+  y los años de experiencia no muestran relación clara con el resultado de
+  contratación, vale la pena revisar si el Code Challenge y la Entrevista
+  Técnica están evaluando correctamente las diferencias reales de habilidad
+  entre niveles de experiencia.
