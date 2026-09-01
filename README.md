@@ -13,7 +13,7 @@ Perfilamiento realizado en `notebooks/data_profiling.ipynb`, en el siguiente ord
 **2. Tipos de datos (`df.dtypes`)**
 - Texto (`str`): First Name, Last Name, Email, Application Date, Country, Seniority, Technology
 - Numéricos (`int64`): YOE, Code Challenge Score, Technical Interview Score
-- ⚠️ `Application Date` llega como texto, no como fecha — debe convertirse en la preparación de datos.
+- `Application Date` llega como texto, no como fecha — debe convertirse en la preparación de datos.
 
 **3. Valores nulos (`df.isnull().sum()`)**
 - 0 valores nulos en todas las columnas.
@@ -50,3 +50,93 @@ Perfilamiento realizado en `notebooks/data_profiling.ipynb`, en el siguiente ord
 - Los 167 emails duplicados no son errores de carga (no son filas idénticas),
   sino candidatos que reaplicaron — se evaluará si sustentan un requisito adicional (R4/R5).
 
+## Requisitos de Negocio Adicionales (R4, R5)
+
+| ID | Requisito de Negocio | Pregunta de Negocio | Decisión que Soporta |
+|----|----------------------|----------------------|------------------------|
+| R4 | Analizar el país de origen de las aplicaciones y su tasa de contratación desglosada por nivel de seniority. | ¿Qué países de origen tienen mayor volumen de aplicaciones y mejor tasa de contratación para cada nivel de seniority? | Priorizar en qué países enfocar campañas de reclutamiento dirigidas a perfiles específicos. |
+| R5 | Analizar si los candidatos que aplican más de una vez tienen una tasa de contratación distinta a los que aplican una sola vez. | ¿Los candidatos que reaplican tienen mayor o menor tasa de contratación que los que aplican una sola vez? | Decidir si vale la pena animar a los candidatos no contratados a volver a aplicar. |
+
+
+## Trazabilidad de Requisitos
+
+| Requisito | Pregunta de Negocio | Datos Requeridos | Salida Analítica Esperada |
+|---|---|---|---|
+| R1 | Monitorear las tendencias de contratación a lo largo del tiempo para identificar cambios en los resultados de reclutamiento. | Application Date, Code Challenge Score, Technical Interview Score | Tabla agrupada por mes: total de aplicaciones, total de contratados, tasa de contratación. |
+| R2 | Comparar los resultados de contratación entre tecnologías para identificar qué perfiles técnicos generan el mayor número y proporción de candidatos contratados. | Technology, Code Challenge Score, Technical Interview Score | Tabla agrupada por Technology: total de aplicaciones, total de contratados, tasa de contratación. |
+| R3 | Analizar los resultados de contratación según el seniority del candidato y los años de experiencia profesional. | Seniority, YOE, Code Challenge Score, Technical Interview Score | Tabla agrupada por Seniority y rango de YOE: total de aplicaciones, total de contratados, tasa de contratación. |
+| R4 | Analizar el país de origen de las aplicaciones y su tasa de contratación desglosada por nivel de seniority. | Country, Seniority, Code Challenge Score, Technical Interview Score | Tabla agrupada por Country y Seniority: total de aplicaciones, total de contratados, tasa de contratación. |
+| R5 | Analizar si los candidatos que aplican más de una vez tienen una tasa de contratación distinta a los que aplican una sola vez. | Email, Code Challenge Score, Technical Interview Score | Tabla agrupada por "reaplicó: sí/no": total de candidatos, total de contratados, tasa de contratación. |
+
+
+
+## Modelo Dimensional
+
+### Proceso de Negocio
+Proceso de Aplicación de Candidatos (Candidate Application Process). Cada fila del
+dataset representa una aplicación individual de un candidato a un proceso de
+reclutamiento técnico — este es el evento central sobre el cual giran los 5
+requisitos de negocio (R1-R5).
+
+### Grano
+Una fila en la Tabla de Hechos (FactApplications) representa una aplicación
+individual de un candidato a un proceso de reclutamiento, en una fecha específica,
+para una tecnología específica.
+
+
+### Dimensiones
+
+| Dimensión | Propósito | Atributos Principales | Requisito(s) que Soporta |
+|---|---|---|---|
+| DimDate | Contextualizar el tiempo de cada aplicación | full_date, year, month, quarter | R1 |
+| DimTechnology | Contextualizar la tecnología a la que aplicó | technology_name | R2 |
+| DimCandidateProfile | Contextualizar el perfil (seniority + experiencia) | seniority, yoe_range | R3 |
+| DimCountry | Contextualizar el país de origen | country_name | R4 |
+| DimCandidate | Identificar al candidato (para detectar reaplicaciones) | first_name, last_name, email | R5 |
+
+### Hechos y Medidas
+
+| Medida | Significado | Fuente / Cálculo | Requisito(s) que Soporta |
+|---|---|---|---|
+| code_challenge_score | Puntaje del reto de código (0-10) | Directo del CSV | Todos (para calcular is_hired) |
+| technical_interview_score | Puntaje de la entrevista técnica (0-10) | Directo del CSV | Todos (para calcular is_hired) |
+| is_hired | 1 si fue contratado, 0 si no | Calculado: 1 si code_challenge_score >= 7 Y technical_interview_score >= 7, si no 0 | R1, R2, R3, R4, R5 |
+| application_count | Cuenta de aplicaciones (siempre 1 por fila) | Constante = 1 | Todos |
+
+### Esquema Estrella
+
+**Tabla de Hechos: FactApplications**
+- application_key (PK, surrogate)
+- date_key (FK -> DimDate)
+- technology_key (FK -> DimTechnology)
+- profile_key (FK -> DimCandidateProfile)
+- country_key (FK -> DimCountry)
+- candidate_key (FK -> DimCandidate)
+- code_challenge_score (medida)
+- technical_interview_score (medida)
+- is_hired (medida)
+- application_count (medida)
+
+**Estructura:**
+
+​```
+DimDate ────────────────┐
+DimTechnology ───────────┤
+DimCandidateProfile ─────┼──── FactApplications
+DimCountry ──────────────┤
+DimCandidate ────────────┘
+​```
+
+Cada dimensión se conecta a la Tabla de Hechos mediante su llave subrogada (FK).
+Cada dimensión usa una llave subrogada como llave primaria (no se usan llaves
+naturales del CSV como PK).
+
+### Validación del Modelo
+
+| Requisito | Dimensión(es) Requerida(s) | Medida(s) Requerida(s) | Soportado? |
+|---|---|---|---|
+| R1 | DimDate | is_hired, application_count | Si |
+| R2 | DimTechnology | is_hired, application_count | Si |
+| R3 | DimCandidateProfile | is_hired, application_count | Si |
+| R4 | DimCountry, DimCandidateProfile | is_hired, application_count | Si |
+| R5 | DimCandidate | is_hired, application_count | Si |
