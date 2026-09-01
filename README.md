@@ -117,26 +117,73 @@ para una tecnología específica.
 - is_hired (medida)
 - application_count (medida)
 
-**Estructura:**
+### Esquema Estrella (Diagrama)
+
+mermaid
+erDiagram
+    DIMDATE {
+        int date_key PK
+        date full_date
+        int year
+        int month
+        int quarter
+    }
+
+    DIMTECHNOLOGY {
+        int technology_key PK
+        string technology_name
+    }
+
+    DIMCANDIDATEPROFILE {
+        int profile_key PK
+        string seniority
+        string yoe_range
+    }
+
+    DIMCOUNTRY {
+        int country_key PK
+        string country_name
+    }
+
+    DIMCANDIDATE {
+        int candidate_key PK
+        string first_name
+        string last_name
+        string email
+    }
+
+    FACTAPPLICATIONS {
+        int application_key PK
+        int date_key FK
+        int technology_key FK
+        int profile_key FK
+        int country_key FK
+        int candidate_key FK
+        int code_challenge_score
+        int technical_interview_score
+        int is_hired
+        int application_count
+    }
+
+    DIMDATE ||--o{ FACTAPPLICATIONS : "date_key"
+    DIMTECHNOLOGY ||--o{ FACTAPPLICATIONS : "technology_key"
+    DIMCANDIDATEPROFILE ||--o{ FACTAPPLICATIONS : "profile_key"
+    DIMCOUNTRY ||--o{ FACTAPPLICATIONS : "country_key"
+    DIMCANDIDATE ||--o{ FACTAPPLICATIONS : "candidate_key"
 
 
-**Estructura (Esquema Estrella):**
 
-| Dimensión | Se conecta a FactApplications mediante |
-|---|---|
-| DimDate | date_key |
-| DimTechnology | technology_key |
-| DimCandidateProfile | profile_key |
-| DimCountry | country_key |
-| DimCandidate | candidate_key |
+
+Cada dimensión se conecta a la Tabla de Hechos mediante su llave subrogada (FK).
+Cada dimensión usa una llave subrogada como llave primaria (no se usan llaves
+naturales del CSV como PK).
 
 Las 5 dimensiones se conectan alrededor de una única Tabla de Hechos central
 (FactApplications), cada una mediante su llave subrogada — esta forma de
 "estrella" (una tabla central rodeada de dimensiones) es lo que le da nombre
 al Esquema Estrella.
 
-Cada dimensión usa una llave subrogada como llave primaria (no se usan llaves
-naturales del CSV como PK).
+
 
 ### Validación del Modelo
 
