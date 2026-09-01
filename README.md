@@ -119,15 +119,22 @@ para una tecnología específica.
 
 **Estructura:**
 
-​```
-DimDate ────────────────┐
-DimTechnology ───────────┤
-DimCandidateProfile ─────┼──── FactApplications
-DimCountry ──────────────┤
-DimCandidate ────────────┘
-​```
 
-Cada dimensión se conecta a la Tabla de Hechos mediante su llave subrogada (FK).
+**Estructura (Esquema Estrella):**
+
+| Dimensión | Se conecta a FactApplications mediante |
+|---|---|
+| DimDate | date_key |
+| DimTechnology | technology_key |
+| DimCandidateProfile | profile_key |
+| DimCountry | country_key |
+| DimCandidate | candidate_key |
+
+Las 5 dimensiones se conectan alrededor de una única Tabla de Hechos central
+(FactApplications), cada una mediante su llave subrogada — esta forma de
+"estrella" (una tabla central rodeada de dimensiones) es lo que le da nombre
+al Esquema Estrella.
+
 Cada dimensión usa una llave subrogada como llave primaria (no se usan llaves
 naturales del CSV como PK).
 
