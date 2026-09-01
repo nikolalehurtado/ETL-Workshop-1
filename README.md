@@ -377,3 +377,190 @@ tablas (`clear_tables`) para permitir re-ejecuciones sin duplicar datos.
  
 Se verificó que las 50,000 aplicaciones tienen referencias válidas hacia las
 5 dimensiones (0 llaves nulas).
+
+
+## Consultas Analíticas y KPIs (Task 6)
+
+Todas las consultas se ejecutaron directamente sobre el Data Warehouse
+(`recruitment_dw` en MySQL), no sobre el CSV ni sobre DataFrames intermedios.
+El archivo completo de consultas está en `sql/analytical_queries.sql`.
+
+### R1 — Tendencias de Contratación en el Tiempo
+
+**Pregunta de negocio:** ¿Cómo varía la tasa de contratación mes a mes?
+
+**Consulta SQL:**
+```sql
+SELECT
+    d.year,
+    d.month,
+    SUM(f.application_count) AS total_aplicaciones,
+    SUM(f.is_hired) AS total_contratados,
+    ROUND(SUM(f.is_hired) / SUM(f.application_count) * 100, 2) AS tasa_contratacion_pct
+FROM FactApplications f
+JOIN DimDate d ON f.date_key = d.date_key
+GROUP BY d.year, d.month
+ORDER BY d.year, d.month;
+```
+
+**Resultado (muestra):**
+
+| Año | Mes | Aplicaciones | Contratados | Tasa % |
+|---|---|---|---|---|
+| 2018 | 1 | 922 | 112 | 12.15 |
+| 2019 | 8 | 955 | 148 | 15.50 |
+| 2020 | 1 | 916 | 127 | 13.86 |
+| 2021 | 1 | 909 | 143 | 15.73 |
+| 2022 | 5 | 979 | 144 | 14.71 |
+
+**Interpretación:** La tasa de contratación se mantiene estable a lo largo de los
+4.5 años del dataset, moviéndose entre 11.4% y 16.96%, sin una tendencia sostenida
+de subida o bajada. Julio de 2022 muestra solo 112 aplicaciones (muy por debajo
+del promedio mensual de ~900-990) porque el dataset termina el 2022-07-04, es
+decir, ese mes está incompleto y no representa una caída real de actividad.
+
+### R2 — Comparación de Tecnologías
+
+**Pregunta de negocio:** ¿Qué tecnologías generan mayor número y proporción de
+candidatos contratados?
+
+**Consulta SQL:**
+```sql
+SELECT
+    t.technology_name,
+    SUM(f.application_count) AS total_aplicaciones,
+    SUM(f.is_hired) AS total_contratados,
+    ROUND(SUM(f.is_hired) / SUM(f.application_count) * 100, 2) AS tasa_contratacion_pct
+FROM FactApplications f
+JOIN DimTechnology t ON f.technology_key = t.technology_key
+GROUP BY t.technology_name
+ORDER BY tasa_contratacion_pct DESC;
+```
+
+**Resultado (top y bottom):**
+
+| Tecnología | Aplicaciones | Contratados | Tasa % |
+|---|---|---|---|
+| Development - CMS Backend | 1,882 | 284 | 15.09 |
+| Database Administration | 1,933 | 282 | 14.59 |
+| System Administration | 2,014 | 293 | 14.55 |
+| ... | ... | ... | ... |
+| Technical Writing | 1,901 | 223 | 11.73 |
+| Social Media Community Management | 2,028 | 237 | 11.69 |
+
+**Interpretación:** Development - CMS Backend tiene la mejor tasa de contratación
+(15.09%). DevOps y Game Development destacan por volumen (~3,800 aplicaciones
+cada una, el doble que el resto de tecnologías), aunque sus tasas de contratación
+(13.00% y 13.59%) están en el promedio general, no en los extremos. Social Media
+Community Management y Technical Writing muestran las tasas más bajas (~11.7%).
+
+### R3 — Perfil del Candidato (Seniority + Años de Experiencia)
+
+**Pregunta de negocio:** ¿Existen diferencias en la tasa de contratación según
+el seniority y los años de experiencia del candidato?
+
+**Consulta SQL:**
+```sql
+SELECT
+    p.seniority,
+    p.yoe_range,
+    SUM(f.application_count) AS total_aplicaciones,
+    SUM(f.is_hired) AS total_contratados,
+    ROUND(SUM(f.is_hired) / SUM(f.application_count) * 100, 2) AS tasa_contratacion_pct
+FROM FactApplications f
+JOIN DimCandidateProfile p ON f.profile_key = p.profile_key
+GROUP BY p.seniority, p.yoe_range
+ORDER BY p.seniority, p.yoe_range;
+```
+
+**Resultado (muestra):**
+
+| Seniority | Rango YOE | Aplicaciones | Contratados | Tasa % |
+|---|---|---|---|---|
+| Intern | 0-5 | 1,281 | 198 | 15.46 |
+| Mid-Level | 0-5 | 1,351 | 153 | 11.32 |
+| Senior | 16-20 | 1,146 | 132 | 11.52 |
+| Trainee | 0-5 | 1,356 | 191 | 14.09 |
+
+**Interpretación:** Las tasas de contratación se mueven en un rango angosto
+(11.32% a 15.46%) sin un patrón claro asociado al seniority o a los años de
+experiencia — por ejemplo, Intern con 0-5 años (15.46%) supera a Mid-Level con
+0-5 años (11.32%). Esto sugiere que el resultado de contratación depende
+principalmente de los puntajes de las pruebas técnicas, no del perfil declarado
+del candidato.
+
+### R4 — País de Origen
+
+**Pregunta de negocio:** ¿Qué países tienen mayor volumen de aplicaciones y cuál
+es su tasa de contratación?
+
+**Consulta SQL:**
+```sql
+SELECT
+    c.country_name,
+    SUM(f.application_count) AS total_aplicaciones,
+    SUM(f.is_hired) AS total_contratados,
+    ROUND(SUM(f.is_hired) / SUM(f.application_count) * 100, 2) AS tasa_contratacion_pct
+FROM FactApplications f
+JOIN DimCountry c ON f.country_key = c.country_key
+GROUP BY c.country_name
+ORDER BY total_aplicaciones DESC
+LIMIT 10;
+```
+
+**Resultado (Top 10 por volumen):**
+
+| País | Aplicaciones | Contratados | Tasa % |
+|---|---|---|---|
+| Malawi | 242 | 23 | 9.50 |
+| Spain | 238 | 31 | 13.03 |
+| Malaysia | 232 | 34 | 14.66 |
+| Nauru | 231 | 33 | 14.29 |
+| Tajikistan | 233 | 23 | 9.87 |
+
+**Interpretación:** Malawi recibe el mayor volumen de aplicaciones (242), pero
+tiene una de las tasas de contratación más bajas del top 10 (9.50%), muy por
+debajo del promedio general (13.4%). Malaysia y Nauru, en cambio, combinan buen
+volumen con las mejores tasas de contratación (14.66% y 14.29%). Esto sugiere
+priorizar campañas de reclutamiento en países como Malaysia o Nauru, que
+convierten mejor, en vez de solo enfocarse en el volumen bruto de aplicaciones.
+
+### R5 — Efecto de la Reaplicación
+
+**Pregunta de negocio:** ¿Los candidatos que reaplican tienen una tasa de
+contratación distinta a los que aplican una sola vez?
+
+**Consulta SQL:**
+```sql
+SELECT
+    CASE
+        WHEN app_count_per_candidate > 1 THEN 'Reaplicó'
+        ELSE 'Aplicó una sola vez'
+    END AS grupo,
+    COUNT(DISTINCT candidate_key) AS total_candidatos,
+    SUM(is_hired) AS total_contratados_aplicaciones,
+    ROUND(SUM(is_hired) / COUNT(*) * 100, 2) AS tasa_contratacion_pct
+FROM (
+    SELECT
+        f.candidate_key,
+        f.is_hired,
+        COUNT(*) OVER (PARTITION BY f.candidate_key) AS app_count_per_candidate
+    FROM FactApplications f
+) sub
+GROUP BY grupo;
+```
+
+**Resultado:**
+
+| Grupo | Candidatos únicos | Contratados | Tasa % |
+|---|---|---|---|
+| Aplicó una sola vez | 49,668 | 6,661 | 13.41 |
+| Reaplicó | 165 | 37 | 11.14 |
+
+**Interpretación:** Los candidatos que reaplicaron muestran una tasa de
+contratación ligeramente menor (11.14%) que quienes aplicaron una sola vez
+(13.41%), una diferencia de 2.3 puntos porcentuales. No hay evidencia de que
+reaplicar mejore las posibilidades de contratación; de hecho, sugiere
+ligeramente lo contrario. Es importante notar que la muestra de reaplicantes
+es pequeña (165 candidatos frente a 49,668), por lo que esta diferencia podría
+no ser estadísticamente significativa y debe interpretarse con cautela.
