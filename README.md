@@ -170,19 +170,11 @@ erDiagram
     DIMCANDIDATEPROFILE ||--o{ FACTAPPLICATIONS : "profile_key"
     DIMCOUNTRY ||--o{ FACTAPPLICATIONS : "country_key"
     DIMCANDIDATE ||--o{ FACTAPPLICATIONS : "candidate_key"
-
-```mermaid
-
+```
 
 Cada dimensión se conecta a la Tabla de Hechos mediante su llave subrogada (FK).
 Cada dimensión usa una llave subrogada como llave primaria (no se usan llaves
 naturales del CSV como PK).
-
-Las 5 dimensiones se conectan alrededor de una única Tabla de Hechos central
-(FactApplications), cada una mediante su llave subrogada — esta forma de
-"estrella" (una tabla central rodeada de dimensiones) es lo que le da nombre
-al Esquema Estrella.
-
 
 
 ### Validación del Modelo
