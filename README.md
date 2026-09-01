@@ -119,7 +119,7 @@ para una tecnología específica.
 
 ### Esquema Estrella (Diagrama)
 
-mermaid
+```mermaid
 erDiagram
     DIMDATE {
         int date_key PK
@@ -171,7 +171,7 @@ erDiagram
     DIMCOUNTRY ||--o{ FACTAPPLICATIONS : "country_key"
     DIMCANDIDATE ||--o{ FACTAPPLICATIONS : "candidate_key"
 
-
+```mermaid
 
 
 Cada dimensión se conecta a la Tabla de Hechos mediante su llave subrogada (FK).
